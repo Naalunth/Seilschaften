@@ -2,6 +2,8 @@
 #include <queue>
 #include <stack>
 #include <set>
+#include <algorithm>
+#include <utility>
 
 
 Tower::Tower()
@@ -24,28 +26,29 @@ vector<Tower::SolutionStep>* Tower::SolveForSituation(Tower::Situation& starting
 		SearchStruct* lastStep;
 		~SearchStruct(){ if (lastStep) delete lastStep; }
 	};
-	vector<Tower::SolutionStep>* result = 0;
+	vector<Tower::SolutionStep>* result = new vector<Tower::SolutionStep>();
 	queue<SearchStruct*> workBuffer;
 	set<Situation> alreadyChecked;
+	alreadyChecked.insert(startingSituation);
 	SearchStruct* currentNode = new SearchStruct{ startingSituation, SolutionStep(), 0 };
 
 	workBuffer.push(currentNode);
 
 
-	auto DifferenceBetweenSituations = [&](const Situation& a, const Situation& b) -> uint32 {
+	auto DifferenceBetweenSituations = [&](const Situation& a, const Situation& b) -> int {
 		int res = 0;
 		for (size_t p = 0; p < peopleWeights.size(); p++)
 		{
-			res += a.peoplePositions[p] ? peopleWeights[p] : -peopleWeights[p];
-			res -= b.peoplePositions[p] ? peopleWeights[p] : -peopleWeights[p];
+			res += a.peoplePositions[p] ? peopleWeights[p] : -(int) peopleWeights[p];
+			res -= b.peoplePositions[p] ? peopleWeights[p] : -(int) peopleWeights[p];
 		}
 		for (size_t s = 0; s < stoneWeights.size(); s++)
 		{
-			res += a.stonePositions[s] ? stoneWeights[s] : -stoneWeights[s];
-			res -= b.stonePositions[s] ? stoneWeights[s] : -stoneWeights[s];
+			res += a.stonePositions[s] ? stoneWeights[s] : -(int) stoneWeights[s];
+			res -= b.stonePositions[s] ? stoneWeights[s] : -(int) stoneWeights[s];
 		}
 		res /= 2;
-		return res >= 0 ? res : -res;
+		return res;
 	};
 
 
@@ -69,28 +72,63 @@ vector<Tower::SolutionStep>* Tower::SolveForSituation(Tower::Situation& starting
 	};
 
 
-	auto BuildAllAllowedCombinations = [&](SearchStruct* originalSearchStruct) -> vector<SearchStruct*> {
+	auto BuildAllAllowedCombinations = [&](SearchStruct* const originalSearchStruct) -> vector < SearchStruct* > {
 		vector<SearchStruct*> res;
-		SearchStruct* ssc = new SearchStruct;
-		memcpy(ssc, originalSearchStruct, sizeof SearchStruct);
+		SearchStruct* ssc = new SearchStruct(*originalSearchStruct);
 		ssc->lastStep = originalSearchStruct;
-		uint64* personBitfields = new uint64[peopleWeights.size() / 64 + 1];
-		uint64* stoneBitfields = new uint64[stoneWeights.size() / 64 + 1];
+
+		bool canStonesGoUp =
+			std::find(originalSearchStruct->situation.peoplePositions.begin(), originalSearchStruct->situation.peoplePositions.end(), TOWER_BOTTOM)
+			!=
+			originalSearchStruct->situation.peoplePositions.end();
+
+
 		for (;;)
 		{
 			for (;;)
 			{
-
-				if (alreadyChecked.find(ssc->situation) == alreadyChecked.end()
-					&& DifferenceBetweenSituations(ssc->situation, originalSearchStruct->situation) <= limit)
+				if (!canStonesGoUp)
 				{
-					ssc->solutionStep = CreateSolutionStep(originalSearchStruct->situation, ssc->situation);
-					SearchStruct* s = new SearchStruct;
-					memcpy(s, ssc, sizeof SearchStruct);
-					res.push_back(s);
-					alreadyChecked.insert(s->situation);
+					for (size_t s = 0; s < stoneWeights.size(); s++)
+					{
+						//Any situation where a stone can't be moved
+						if ((ssc->situation.stonePositions[s] > originalSearchStruct->situation.stonePositions[s] && !originalSearchStruct->situation.stoneIsInBottomBasket[s])
+							|| (ssc->situation.stonePositions[s] == TOWER_BOTTOM && originalSearchStruct->situation.stonePositions[s] == TOWER_BOTTOM && originalSearchStruct->situation.stoneIsInBottomBasket[s]))
+							goto doNotInsert;
+					}
 				}
 
+				bool onlyStonesMove = true;
+				for (size_t p = 0; p < peopleWeights.size(); p++)
+				{
+					if (originalSearchStruct->situation.peoplePositions[p] != ssc->situation.peoplePositions[p])
+					{
+						onlyStonesMove = false;
+						break;
+					}
+				}
+
+				int d = DifferenceBetweenSituations(originalSearchStruct->situation, ssc->situation);
+				if (d < 0) goto doNotInsert;
+				if (!onlyStonesMove)
+				{
+					if (d > (int) limit) goto doNotInsert;
+				}
+
+				if (alreadyChecked.find(ssc->situation) != alreadyChecked.end()) goto doNotInsert;
+
+				ssc->solutionStep = CreateSolutionStep(originalSearchStruct->situation, ssc->situation);
+				SearchStruct* s = new SearchStruct(*ssc);
+				for (int i = 0; i < s->situation.stoneIsInBottomBasket.size(); i++)
+					s->situation.stoneIsInBottomBasket[i] = std::find(s->solutionStep.downStones.begin(), s->solutionStep.downStones.end(), i) != s->solutionStep.downStones.end();
+				res.push_back(s);
+				alreadyChecked.insert(s->situation);
+
+			doNotInsert:
+				if (ssc->situation.stonePositions.size() <= 0)
+				{
+					break;
+				}
 				auto it = ssc->situation.stonePositions.begin();
 				for (;;)
 				{
@@ -130,8 +168,9 @@ vector<Tower::SolutionStep>* Tower::SolveForSituation(Tower::Situation& starting
 				break;
 			}
 		}
-	};
 
+		return res;
+	};
 
 	while (!workBuffer.empty())
 	{
@@ -140,7 +179,7 @@ vector<Tower::SolutionStep>* Tower::SolveForSituation(Tower::Situation& starting
 
 		if (currentNode->situation.IsSolution())
 		{
-			break;
+			goto foundSolution;
 		}
 
 		vector<SearchStruct*> com = BuildAllAllowedCombinations(currentNode);
@@ -150,6 +189,17 @@ vector<Tower::SolutionStep>* Tower::SolveForSituation(Tower::Situation& starting
 			workBuffer.push(s);
 		}
 	}
+	return result;
+
+foundSolution:
+	result->push_back(currentNode->solutionStep);
+	while (currentNode->lastStep)
+	{
+		currentNode = currentNode->lastStep;
+		result->push_back(currentNode->solutionStep);
+	}
+	result->pop_back();
+	std::reverse(result->begin(), result->end());
 
 	return result;
 }
@@ -157,11 +207,16 @@ vector<Tower::SolutionStep>* Tower::SolveForSituation(Tower::Situation& starting
 
 bool Tower::Situation::IsSolution()
 {
-	for (auto it = peoplePositions.begin(); it != peoplePositions.end(); it++)
+	for (auto a : peoplePositions)
 	{
-		if (!*it) return false;
+		if (a == TOWER_TOP) return false;
 	}
 	return true;
+}
+
+bool Tower::Situation::operator==(const Situation& other) const
+{
+	return this->peoplePositions == other.peoplePositions && this->stonePositions == other.stonePositions && this->stoneIsInBottomBasket == other.stoneIsInBottomBasket;
 }
 
 bool Tower::Situation::operator<(const Situation& other) const
@@ -178,18 +233,35 @@ bool Tower::Situation::operator<(const Situation& other) const
 
 	it1 = peoplePositions.begin();
 	it2 = other.peoplePositions.begin();
-	while (*(it1++) == *(it2++));
-	if (it1 == peoplePositions.end() && !(it2 == other.peoplePositions.end())) return true;
-	if (it2 == other.peoplePositions.end() && !(it1 == peoplePositions.end())) return false;
-	if (!(it1 == peoplePositions.end() && it2 == other.peoplePositions.end())) return *--it1 < *--it2;
+	if (stonePositions.size() > 0)
+	{
+		while (*(it1++) == *(it2++) && it1 != peoplePositions.end() && it2 != other.peoplePositions.end());
+		if (it1 == peoplePositions.end() && !(it2 == other.peoplePositions.end())) return true;
+		if (it2 == other.peoplePositions.end() && !(it1 == peoplePositions.end())) return false;
+		if (*(--it1) != *(--it2)) return *it1 < *it2;
+	}
 
 	it1 = stonePositions.begin();
 	it2 = other.stonePositions.begin();
-	while (*(it1++) == *(it2++));
-	if (it1 == stonePositions.end() && !(it2 == other.stonePositions.end())) return true;
-	if (it2 == other.stonePositions.end() && !(it1 == stonePositions.end())) return false;
-	if (!(it1 == stonePositions.end() && it2 == other.stonePositions.end())) return *--it1 < *--it2;
+	if (stonePositions.size() > 0)
+	{
+		while (*(it1++) == *(it2++) && it1 != stonePositions.end() && it2 != other.stonePositions.end());
+		if (it1 == stonePositions.end() && !(it2 == other.stonePositions.end())) return true;
+		if (it2 == other.stonePositions.end() && !(it1 == stonePositions.end())) return false;
+		if (*(--it1) != *(--it2)) return *it1 < *it2;
+	}
 
 	return false;
+}
+
+Tower::Situation Tower::Situation::operator+(const Tower::SolutionStep& step) const
+{
+	Situation res = *this;
+	auto x = [&](vector<size_t> a, vector<bool>& b, bool c){for (int i : a)b[i] = c; };
+	x(step.downPeople, res.peoplePositions, TOWER_BOTTOM);
+	x(step.upPeople, res.peoplePositions, TOWER_TOP);
+	x(step.downStones, res.stonePositions, TOWER_BOTTOM);
+	x(step.upStones, res.stonePositions, TOWER_TOP);
+	return res;
 }
 

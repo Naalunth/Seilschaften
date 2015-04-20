@@ -6,10 +6,13 @@ using namespace std;
 typedef unsigned long uint32;
 typedef unsigned long long uint64;
 
+static const bool TOWER_TOP = 1;
+static const bool TOWER_BOTTOM = 0;
+
 class Tower
 {
 public:
-
+	struct SolutionStep;
 	struct Situation
 	{
 	public:
@@ -18,8 +21,12 @@ public:
 		//1 := top, 0 := bottom
 		vector<bool> stonePositions;
 
+		vector<bool> stoneIsInBottomBasket;
+
 		bool IsSolution();
+		bool operator==(const Situation& other) const;
 		bool operator<(const Situation& other) const;
+		Situation operator+(const SolutionStep& step) const;
 	};
 
 	struct SolutionStep

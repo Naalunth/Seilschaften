@@ -1,1 +1,2 @@
 int main();
+#define SAFE_DELETE(x) if(x){delete (x);(x)=0;};
