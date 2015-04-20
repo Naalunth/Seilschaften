@@ -4,18 +4,18 @@
 #include <set>
 #include <algorithm>
 #include <utility>
+#include <list>
+
+#include "Util.h"
 
 
 Tower::Tower()
 {
 }
 
-
 Tower::~Tower()
 {
 }
-
-
 
 vector<Tower::SolutionStep>* Tower::SolveForSituation(Tower::Situation& startingSituation)
 {
@@ -24,13 +24,13 @@ vector<Tower::SolutionStep>* Tower::SolveForSituation(Tower::Situation& starting
 		Tower::Situation situation;
 		Tower::SolutionStep solutionStep;
 		SearchStruct* lastStep;
-		~SearchStruct(){ if (lastStep) delete lastStep; }
 	};
 	vector<Tower::SolutionStep>* result = new vector<Tower::SolutionStep>();
 	queue<SearchStruct*> workBuffer;
 	set<Situation> alreadyChecked;
 	alreadyChecked.insert(startingSituation);
 	SearchStruct* currentNode = new SearchStruct{ startingSituation, SolutionStep(), 0 };
+	list<SearchStruct*> stuffToDeleteLater;
 
 	workBuffer.push(currentNode);
 
@@ -72,16 +72,12 @@ vector<Tower::SolutionStep>* Tower::SolveForSituation(Tower::Situation& starting
 	};
 
 
-	auto BuildAllAllowedCombinations = [&](SearchStruct* const originalSearchStruct) -> vector < SearchStruct* > {
+	auto BuildAllAllowedCombinations = [&](SearchStruct* const originalSearchStruct) -> vector <SearchStruct*> {
 		vector<SearchStruct*> res;
 		SearchStruct* ssc = new SearchStruct(*originalSearchStruct);
 		ssc->lastStep = originalSearchStruct;
 
-		bool canStonesGoUp =
-			std::find(originalSearchStruct->situation.peoplePositions.begin(), originalSearchStruct->situation.peoplePositions.end(), TOWER_BOTTOM)
-			!=
-			originalSearchStruct->situation.peoplePositions.end();
-
+		bool canStonesGoUp = contains(originalSearchStruct->situation.peoplePositions, TOWER_BOTTOM);
 
 		for (;;)
 		{
@@ -107,7 +103,7 @@ vector<Tower::SolutionStep>* Tower::SolveForSituation(Tower::Situation& starting
 						break;
 					}
 				}
-
+				 
 				int d = DifferenceBetweenSituations(originalSearchStruct->situation, ssc->situation);
 				if (d < 0) goto doNotInsert;
 				if (!onlyStonesMove)
@@ -119,8 +115,8 @@ vector<Tower::SolutionStep>* Tower::SolveForSituation(Tower::Situation& starting
 
 				ssc->solutionStep = CreateSolutionStep(originalSearchStruct->situation, ssc->situation);
 				SearchStruct* s = new SearchStruct(*ssc);
-				for (int i = 0; i < s->situation.stoneIsInBottomBasket.size(); i++)
-					s->situation.stoneIsInBottomBasket[i] = std::find(s->solutionStep.downStones.begin(), s->solutionStep.downStones.end(), i) != s->solutionStep.downStones.end();
+				for (size_t i = 0; i < s->situation.stoneIsInBottomBasket.size(); i++)
+					s->situation.stoneIsInBottomBasket[i] = contains(s->solutionStep.downStones, i);
 				res.push_back(s);
 				alreadyChecked.insert(s->situation);
 
@@ -169,13 +165,16 @@ vector<Tower::SolutionStep>* Tower::SolveForSituation(Tower::Situation& starting
 			}
 		}
 
+		delete ssc;
 		return res;
 	};
+
 
 	while (!workBuffer.empty())
 	{
 		currentNode = workBuffer.front();
 		workBuffer.pop();
+		stuffToDeleteLater.push_front(currentNode);
 
 		if (currentNode->situation.IsSolution())
 		{
@@ -183,7 +182,6 @@ vector<Tower::SolutionStep>* Tower::SolveForSituation(Tower::Situation& starting
 		}
 
 		vector<SearchStruct*> com = BuildAllAllowedCombinations(currentNode);
-		sort(com.begin(), com.end(), [&](SearchStruct* a, SearchStruct* b){return a->situation < b->situation; });
 		for (SearchStruct* s : com)
 		{
 			workBuffer.push(s);
@@ -200,6 +198,17 @@ foundSolution:
 	}
 	result->pop_back();
 	std::reverse(result->begin(), result->end());
+
+	while (!workBuffer.empty())
+	{
+		currentNode = workBuffer.front();
+		workBuffer.pop();
+		SAFE_DELETE(currentNode);
+	}
+	for (auto a : stuffToDeleteLater)
+		delete a;
+		
+	
 
 	return result;
 }
@@ -264,4 +273,3 @@ Tower::Situation Tower::Situation::operator+(const Tower::SolutionStep& step) co
 	x(step.upStones, res.stonePositions, TOWER_TOP);
 	return res;
 }
-

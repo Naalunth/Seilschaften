@@ -9,6 +9,7 @@
 #include <ios>
 
 #include "Tower.h"
+#include "Util.h"
 
 
 int GetTowerFromFile(const char* filename, Tower** outTower, Tower::Situation** outSituation)
@@ -45,38 +46,39 @@ void PrintFancy(const Tower& tower, const Tower::Situation& startSituation, cons
 {
 	auto PrintSituation = [&](const Tower::Situation& situation)
 	{
-		auto printy = [&](const std::vector<bool>& a, const std::vector<uint32>& b, bool c){for (int i = 0; i < a.size(); i++)if (a[i] == c)std::cout << b[i] << " "; };
-		std::cout << "Top people: ";
-		printy(situation.peoplePositions, tower.peopleWeights, TOWER_TOP);
-		std::cout << "\nTop stones: ";
-		printy(situation.stonePositions, tower.stoneWeights, TOWER_TOP);
-		std::cout << "\nBottom people: ";
-		printy(situation.peoplePositions, tower.peopleWeights, TOWER_BOTTOM);
-		std::cout << "\nBottom stones: ";
-		printy(situation.stonePositions, tower.stoneWeights, TOWER_BOTTOM);
-		std::cout << "\n";
+		auto printy = [&](const std::string& s, const std::vector<bool>& a, const std::vector<uint32>& b, const bool c){
+			if (contains(a,c)){
+				std::cout << s << ": ";
+				for (size_t i = 0; i < a.size(); i++) if (a[i] == c)std::cout << b[i] << " ";
+				std::cout << "\n";
+			}};
+		printy("Top people", situation.peoplePositions, tower.peopleWeights, TOWER_TOP);
+		printy("Top stones", situation.stonePositions, tower.stoneWeights, TOWER_TOP);
+		printy("Bottom people", situation.peoplePositions, tower.peopleWeights, TOWER_BOTTOM);
+		printy("Bottom stones", situation.stonePositions, tower.stoneWeights, TOWER_BOTTOM);
+
 		fflush(stdout);
 	};
 
 	auto PrintStep = [&](const Tower::SolutionStep& step)
 	{
-		auto printy = [&](const std::vector<size_t>& a, const std::vector<uint32>& b){for (size_t i : a) std::cout << b[i] << " "; };
-		std::cout << "People going down: ";
-		printy(step.downPeople, tower.peopleWeights);
-		std::cout << "\nStones going down: ";
-		printy(step.downStones, tower.stoneWeights);
-		std::cout << "\nPeople going up: ";
-		printy(step.upPeople, tower.peopleWeights);
-		std::cout << "\nStones going up: ";
-		printy(step.upStones, tower.stoneWeights);
-		std::cout << "\n";
+		auto printy = [&](const std::string& s, const std::vector<size_t>& a, const std::vector<uint32>& b){
+			if (a.size()){
+				std::cout << s << ": ";
+				for (size_t i : a) std::cout << b[i] << " ";
+				std::cout << "\n";
+			}};
+		printy("People going down", step.downPeople, tower.peopleWeights);
+		printy("Stones going down", step.downStones, tower.stoneWeights);
+		printy("People going up", step.upPeople, tower.peopleWeights);
+		printy("Stones going up", step.upStones, tower.stoneWeights);
 		fflush(stdout);
 	};
 
 	Tower::Situation sit = startSituation;
 	PrintSituation(startSituation);
 	std::cout << "\n\n";
-	for (int i = 0; i < solution.size(); i++)
+	for (size_t i = 0; i < solution.size(); i++)
 	{
 		std::cout << "Step " << i + 1 << ":\n\n";
 		PrintStep(solution[i]);
@@ -126,6 +128,7 @@ begin:
 cleanUp:
 	SAFE_DELETE(tower);
 	SAFE_DELETE(startSituation);
+	SAFE_DELETE(solution);
 	std::cout << "\n\n";
 	goto begin;
 
