@@ -225,24 +225,17 @@ bool Tower::Situation::IsSolution()
 
 bool Tower::Situation::operator==(const Situation& other) const
 {
-	return this->peoplePositions == other.peoplePositions && this->stonePositions == other.stonePositions && this->stoneIsInBottomBasket == other.stoneIsInBottomBasket;
+	return (this->peoplePositions == other.peoplePositions) && (this->stonePositions == other.stonePositions) && (this->stoneIsInBottomBasket == other.stoneIsInBottomBasket);
 }
 
 bool Tower::Situation::operator<(const Situation& other) const
 {
+	if (*this == other) return false;
+
 	auto it1 = peoplePositions.begin();
 	auto it2 = other.peoplePositions.begin();
-	int a = 0, b = 0;
-	while (it1 != peoplePositions.end())
-	{
-		a += *(it1++);
-		b += *(it2++);
-	}
-	if (a != b) return a > b;
 
-	it1 = peoplePositions.begin();
-	it2 = other.peoplePositions.begin();
-	if (stonePositions.size() > 0)
+	if (peoplePositions.size() > 0)
 	{
 		while (*(it1++) == *(it2++) && it1 != peoplePositions.end() && it2 != other.peoplePositions.end());
 		if (it1 == peoplePositions.end() && !(it2 == other.peoplePositions.end())) return true;
@@ -266,7 +259,7 @@ bool Tower::Situation::operator<(const Situation& other) const
 Tower::Situation Tower::Situation::operator+(const Tower::SolutionStep& step) const
 {
 	Situation res = *this;
-	auto x = [&](vector<size_t> a, vector<bool>& b, bool c){for (int i : a)b[i] = c; };
+	auto x = [&](vector<size_t> a, vector<bool>& b, bool c){for (size_t i : a)b[i] = c; };
 	x(step.downPeople, res.peoplePositions, TOWER_BOTTOM);
 	x(step.upPeople, res.peoplePositions, TOWER_TOP);
 	x(step.downStones, res.stonePositions, TOWER_BOTTOM);

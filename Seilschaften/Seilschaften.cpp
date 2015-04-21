@@ -99,9 +99,9 @@ int main()
 	std::cout << "Seilschaften - by Kevin Schier\n\n";
 
 	string filename;
-	Tower* tower;
-	Tower::Situation* startSituation;
-	std::vector<Tower::SolutionStep>* solution;
+	Tower* tower = 0;
+	Tower::Situation* startSituation = 0;
+	std::vector<Tower::SolutionStep>* solution = 0;
 
 begin:
 	std::cout << "Type in a file to load: ";
